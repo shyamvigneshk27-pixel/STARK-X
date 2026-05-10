@@ -1,29 +1,42 @@
-import { useContext } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Link } from 'react-router-dom';
 import { PlusIcon, CalendarIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Demo data for Excalidraw 3-column layout
-  const ongoingTrips = [
-    { id: 1, name: 'Euro Trip 2026', startDate: '2026-07-10', endDate: '2026-07-28', destinationCount: 5, progress: 20, coverPhoto: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=400&q=80' },
-  ];
-  
-  const upcomingTrips = [
-    { id: 2, name: 'Bali Retreat', startDate: '2026-09-05', endDate: '2026-09-15', destinationCount: 1, progress: 0, coverPhoto: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=400&q=80' },
-  ];
+  useEffect(() => {
+    const fetchTrips = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: true });
 
-  const pastTrips = [
-    { id: 3, name: 'Tokyo Sakura', startDate: '2025-03-25', endDate: '2025-04-10', destinationCount: 3, progress: 100, coverPhoto: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=400&q=80' },
-    { id: 4, name: 'New York Weekend', startDate: '2025-11-20', endDate: '2025-11-23', destinationCount: 1, progress: 100, coverPhoto: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=400&q=80' },
-  ];
+      if (error) {
+        console.error('Error fetching trips:', error);
+      } else {
+        setTrips(data);
+      }
+      setLoading(false);
+    };
 
-  // Component for the "Short Overview" card
+    fetchTrips();
+  }, [user]);
+
+  const ongoingTrips = trips.filter(t => t.status === 'ongoing');
+  const upcomingTrips = trips.filter(t => t.status === 'upcoming');
+  const pastTrips = trips.filter(t => t.status === 'past');
+
   const TripOverviewCard = ({ trip }) => (
-    <Link to={`/trips/${trip.id}`}>
+    <Link to={`/itinerary/${trip.id}`}>
       <motion.div 
         whileHover={{ y: -5 }}
         className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group"

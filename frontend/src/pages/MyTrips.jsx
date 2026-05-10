@@ -1,20 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import TripCard from '../components/ui/TripCard';
 import { MagnifyingGlassIcon, PlusIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
 const MyTrips = () => {
+  const { user } = useContext(AuthContext);
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
 
-  // Demo Data for UI Template
-  const trips = [
-    { id: 1, name: 'Euro Trip 2026', startDate: '2026-07-10', endDate: '2026-07-28', destinationCount: 5, budgetLimit: 4000, progress: 20, status: 'upcoming', coverPhoto: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-    { id: 2, name: 'Bali Retreat', startDate: '2026-09-05', endDate: '2026-09-15', destinationCount: 1, budgetLimit: 1500, progress: 85, status: 'upcoming', coverPhoto: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-    { id: 3, name: 'Tokyo Sakura', startDate: '2025-03-25', endDate: '2025-04-10', destinationCount: 3, budgetLimit: 3000, progress: 100, status: 'past', coverPhoto: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-    { id: 4, name: 'New York Weekend', startDate: '2025-11-20', endDate: '2025-11-23', destinationCount: 1, budgetLimit: 800, progress: 100, status: 'past', coverPhoto: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  ];
+  useEffect(() => {
+    const fetchTrips = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: true });
+
+      if (!error) setTrips(data);
+      setLoading(false);
+    };
+
+    fetchTrips();
+  }, [user]);
 
   const filteredTrips = trips.filter(trip => {
     const matchesSearch = trip.name.toLowerCase().includes(searchTerm.toLowerCase());

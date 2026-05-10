@@ -1,21 +1,34 @@
-import { useContext } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { PencilSquareIcon, MapPinIcon, GlobeAltIcon, CameraIcon } from '@heroicons/react/24/outline';
 import TripCard from '../components/ui/TripCard';
 
 const Profile = () => {
   const { user } = useContext(AuthContext);
+  const [profile, setProfile] = useState(null);
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Demo Data from Excalidraw logic
-  const preplannedTrips = [
-    { id: 1, name: 'Euro Trip 2026', startDate: '2026-07-10', endDate: '2026-07-28', destinationCount: 5, budgetLimit: 4000, progress: 20, status: 'upcoming', coverPhoto: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-    { id: 2, name: 'Bali Retreat', startDate: '2026-09-05', endDate: '2026-09-15', destinationCount: 1, budgetLimit: 1500, progress: 85, status: 'upcoming', coverPhoto: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  ];
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!user) return;
 
-  const previousTrips = [
-    { id: 3, name: 'Tokyo Sakura', startDate: '2025-03-25', endDate: '2025-04-10', destinationCount: 3, budgetLimit: 3000, progress: 100, status: 'past', coverPhoto: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-    { id: 4, name: 'New York Weekend', startDate: '2025-11-20', endDate: '2025-11-23', destinationCount: 1, budgetLimit: 800, progress: 100, status: 'past', coverPhoto: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  ];
+      const [profRes, tripRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('trips').select('*').eq('user_id', user.id)
+      ]);
+
+      if (profRes.data) setProfile(profRes.data);
+      if (tripRes.data) setTrips(tripRes.data);
+      setLoading(false);
+    };
+
+    fetchProfileData();
+  }, [user]);
+
+  const preplannedTrips = trips.filter(t => t.status === 'upcoming');
+  const previousTrips = trips.filter(t => t.status === 'past');
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8">
@@ -45,17 +58,17 @@ const Profile = () => {
 
             {/* Info */}
             <div className="text-center md:text-left flex-grow mb-2">
-              <h1 className="text-3xl font-bold text-gray-900">{user?.name || 'Traveler'}</h1>
+              <h1 className="text-3xl font-bold text-gray-900">{profile?.name || user?.user_metadata?.full_name || 'Traveler'}</h1>
               <p className="text-gray-500 text-lg">{user?.email}</p>
               
               <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-4 text-sm font-medium text-gray-600">
                 <span className="flex items-center bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
                   <MapPinIcon className="w-4 h-4 mr-1.5 text-brand-pink-dark" />
-                  San Francisco, CA
+                  {profile?.location || 'Set Location'}
                 </span>
                 <span className="flex items-center bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
                   <GlobeAltIcon className="w-4 h-4 mr-1.5 text-blue-500" />
-                  12 Countries Visited
+                  {profile?.countries_visited || 0} Countries Visited
                 </span>
               </div>
             </div>

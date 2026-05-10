@@ -29,19 +29,23 @@ const Login = () => {
       return;
     }
 
-    let result;
-    if (isLogin) {
-      result = await login(formData.email, formData.password);
-    } else {
-      result = await register(formData.name, formData.email, formData.password);
-    }
+    try {
+      let result;
+      if (isLogin) {
+        result = await login(formData.email, formData.password);
+      } else {
+        result = await register(formData.name, formData.email, formData.password);
+      }
 
-    if (result.success) {
-      navigate('/');
-    } else {
-      setError(result.msg);
+      if (result.success) {
+        navigate('/');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred during authentication');
+      console.error('Auth error:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

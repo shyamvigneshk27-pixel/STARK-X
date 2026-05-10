@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { PhotoIcon, GlobeAsiaAustraliaIcon, LockClosedIcon, UsersIcon } from '@heroicons/react/24/outline';
 
 const CreateTrip = () => {
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     startDate: '',
@@ -21,12 +25,32 @@ const CreateTrip = () => {
     setFormData({ ...formData, [e.target.id || e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Logic to save trip to backend
-    console.log('Saving trip:', formData);
-    // Navigate to itinerary builder
-    navigate('/itinerary-builder'); // Mock navigation
+    if (!user) return;
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.from('trips').insert({
+        user_id: user.id,
+        name: formData.name,
+        start_date: formData.startDate,
+        end_date: formData.endDate,
+        budget_limit: formData.budgetLimit ? parseFloat(formData.budgetLimit) : 0,
+        status: 'upcoming', // Default for new trips
+        cover_photo: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80' // Default
+      }).select().single();
+
+      if (error) throw error;
+
+      // Navigate to itinerary builder for the new trip
+      navigate(`/itinerary/${data.id}`);
+    } catch (err) {
+      console.error('Error creating trip:', err);
+      alert('Failed to create trip. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

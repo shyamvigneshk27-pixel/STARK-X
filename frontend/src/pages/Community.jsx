@@ -1,53 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { HeartIcon, ChatBubbleLeftIcon, ShareIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
 const Community = () => {
-  // Demo Data based on Excalidraw wireframe
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      user: { name: 'Sarah Jenkins', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80' },
-      time: '2 hours ago',
-      content: 'Just finalized my 2-week itinerary for Japan! Cannot wait for cherry blossom season 🌸. Anyone have recommendations for hidden gems in Kyoto?',
-      image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=800&q=80',
-      likes: 42,
-      comments: 12,
-      isLiked: false
-    },
-    {
-      id: 2,
-      user: { name: 'Marcus Chen' },
-      time: '5 hours ago',
-      content: 'Pro tip for EuroTrips: always book the high-speed trains at least 4 weeks in advance. Just saved over €150 on my Paris to Amsterdam route!',
-      image: null,
-      likes: 128,
-      comments: 34,
-      isLiked: true
-    },
-    {
-      id: 3,
-      user: { name: 'Elena Rodriguez', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80' },
-      time: '1 day ago',
-      content: 'My budget breakdown for 10 days in Bali is now public on my profile! Managed to keep it under $800 excluding flights. Check it out if you are planning a trip soon!',
-      image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=800&q=80',
-      likes: 89,
-      comments: 5,
-      isLiked: false
-    }
-  ]);
+  const { user } = useContext(AuthContext);
+  const [posts, setPosts] = useState([]);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const toggleLike = (id) => {
-    setPosts(posts.map(post => {
-      if (post.id === id) {
-        return {
-          ...post,
-          isLiked: !post.isLiked,
-          likes: post.isLiked ? post.likes - 1 : post.likes + 1
-        };
+  useEffect(() => {
+    const fetchPosts = async () => {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*, profiles(name, profile_photo)')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching posts:', error);
+      } else {
+        setPosts(data);
       }
-      return post;
-    }));
+      setLoading(false);
+    };
+
+    fetchPosts();
+
+    // Real-time listener for new posts
+    const subscription = supabase
+      .channel('public:posts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+        // Fetch profile for the new post
+        const { data: profile } = await supabase.from('profiles').select('name, profile_photo').eq('id', payload.new.user_id).single();
+        const fullPost = { ...payload.new, profiles: profile };
+        setPosts(prev => [fullPost, ...prev]);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(subscription);
+  }, []);
+
+  const handleCreatePost = async () => {
+    if (!newPostContent.trim() || !user) return;
+
+    const { error } = await supabase.from('posts').insert({
+      user_id: user.id,
+      content: newPostContent
+    });
+
+    if (error) {
+      console.error('Error creating post:', error);
+    } else {
+      setNewPostContent('');
+    }
+  };
+
+  const toggleLike = async (postId, currentLikes) => {
+    // This is a simplified like logic for the demo
+    const { error } = await supabase
+      .from('posts')
+      .update({ likes_count: currentLikes + 1 })
+      .eq('id', postId);
+    
+    if (!error) {
+      setPosts(posts.map(p => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
+    }
   };
 
   return (
@@ -63,11 +81,16 @@ const Community = () => {
           <UserCircleIcon className="w-10 h-10 text-gray-400 flex-shrink-0" />
           <div className="flex-grow">
             <textarea 
+              value={newPostContent}
+              onChange={(e) => setNewPostContent(e.target.value)}
               placeholder="Share your travel plans or ask for recommendations..."
               className="w-full bg-gray-50 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink-dark border border-gray-100 resize-none min-h-[80px]"
             ></textarea>
             <div className="flex justify-end mt-3">
-              <button className="bg-brand-pink-dark text-white px-6 py-2 rounded-full font-medium hover:bg-pink-600 transition-colors shadow-sm text-sm">
+              <button 
+                onClick={handleCreatePost}
+                className="bg-brand-pink-dark text-white px-6 py-2 rounded-full font-medium hover:bg-pink-600 transition-colors shadow-sm text-sm"
+              >
                 Post
               </button>
             </div>
@@ -82,16 +105,16 @@ const Community = () => {
             <div className="p-4 md:p-6">
               {/* Header */}
               <div className="flex items-center gap-3 mb-4">
-                {post.user.avatar ? (
-                  <img src={post.user.avatar} alt={post.user.name} className="w-10 h-10 rounded-full object-cover" />
+                {post.profiles?.profile_photo ? (
+                  <img src={post.profiles.profile_photo} alt={post.profiles.name} className="w-10 h-10 rounded-full object-cover" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-brand-pink text-white flex items-center justify-center font-bold">
-                    {post.user.name.charAt(0)}
+                    {post.profiles?.name?.charAt(0) || 'U'}
                   </div>
                 )}
                 <div>
-                  <h3 className="font-bold text-gray-800 text-sm md:text-base">{post.user.name}</h3>
-                  <p className="text-xs text-gray-500">{post.time}</p>
+                  <h3 className="font-bold text-gray-800 text-sm md:text-base">{post.profiles?.name || 'Anonymous'}</h3>
+                  <p className="text-xs text-gray-500">{new Date(post.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
 
@@ -110,11 +133,11 @@ const Community = () => {
               {/* Interactions */}
               <div className="flex items-center gap-6 pt-4 border-t border-gray-50 text-gray-500">
                 <button 
-                  onClick={() => toggleLike(post.id)}
-                  className={`flex items-center gap-1.5 text-sm hover:text-brand-pink-dark transition-colors ${post.isLiked ? 'text-brand-pink-dark' : ''}`}
+                  onClick={() => toggleLike(post.id, post.likes_count)}
+                  className={`flex items-center gap-1.5 text-sm hover:text-brand-pink-dark transition-colors ${post.likes_count > 0 ? 'text-brand-pink-dark' : ''}`}
                 >
-                  {post.isLiked ? <HeartSolidIcon className="w-5 h-5" /> : <HeartIcon className="w-5 h-5" />}
-                  <span className="font-medium">{post.likes}</span>
+                  {post.likes_count > 0 ? <HeartSolidIcon className="w-5 h-5" /> : <HeartIcon className="w-5 h-5" />}
+                  <span className="font-medium">{post.likes_count}</span>
                 </button>
                 <button className="flex items-center gap-1.5 text-sm hover:text-blue-500 transition-colors">
                   <ChatBubbleLeftIcon className="w-5 h-5" />

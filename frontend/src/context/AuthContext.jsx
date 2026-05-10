@@ -1,4 +1,5 @@
 import { createContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 export const AuthContext = createContext();
 
@@ -8,51 +9,67 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadUser = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
+    // Check for existing session on load
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        setToken(session.access_token);
       }
-
-      try {
-        // Mock User
-        setUser({ id: 1, name: 'Alex Explorer', email: 'alex@traveloop.com' });
-      } catch (err) {
-        console.error('Error loading user', err);
-        // Fallback for UI demo
-        setUser({ id: 1, name: 'Alex Explorer', email: 'alex@traveloop.com' });
-      } finally {
-        setLoading(false);
-      }
+      setLoading(false);
     };
 
-    loadUser();
-  }, [token]);
+    checkUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setUser(session.user);
+        setToken(session.access_token);
+      } else {
+        setUser(null);
+        setToken(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const register = async (name, email, password) => {
-    // Mock registration for UI Template
-    const mockToken = 'mock-jwt-token-123';
-    const mockUser = { id: 1, name, email };
-    localStorage.setItem('token', mockToken);
-    setToken(mockToken);
-    setUser(mockUser);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name
+        }
+      }
+    });
+    
+    if (error) throw error;
+
+    if (data.user) {
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        name: name,
+        email: email
+      });
+    }
+
     return { success: true };
   };
 
   const login = async (email, password) => {
-    // Mock login for UI Template
-    const mockToken = 'mock-jwt-token-123';
-    const mockUser = { id: 1, name: 'Alex Explorer', email };
-    localStorage.setItem('token', mockToken);
-    setToken(mockToken);
-    setUser(mockUser);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
     return { success: true };
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
   return (

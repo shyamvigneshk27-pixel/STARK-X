@@ -3,16 +3,13 @@ import { CalendarIcon, MapPinIcon, CurrencyDollarIcon } from '@heroicons/react/2
 import { Link } from 'react-router-dom';
 
 const TripCard = ({ trip }) => {
-  // Mock data if trip is undefined
-  const data = trip || {
-    id: 1,
-    name: 'Summer in Paris',
-    coverPhoto: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    startDate: '2026-06-15',
-    endDate: '2026-06-25',
-    destinationCount: 3,
-    budgetLimit: 2500,
-    progress: 40 // percentage
+  // Map Supabase snake_case to camelCase for the UI
+  const data = {
+    ...trip,
+    coverPhoto: trip?.cover_photo || trip?.coverPhoto,
+    startDate: trip?.start_date || trip?.startDate,
+    endDate: trip?.end_date || trip?.endDate,
+    budgetLimit: trip?.budget_limit || trip?.budgetLimit,
   };
 
   return (
@@ -20,7 +17,7 @@ const TripCard = ({ trip }) => {
       whileHover={{ y: -5 }}
       className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300"
     >
-      <Link to={`/trips/${data.id}`}>
+      <Link to={`/itinerary/${data.id}`}>
         <div className="relative h-48">
           {data.coverPhoto ? (
             <img 

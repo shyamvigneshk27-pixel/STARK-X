@@ -1,23 +1,84 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { PlusIcon, TrashIcon, MapPinIcon, CurrencyDollarIcon, ClockIcon } from '@heroicons/react/24/outline';
 import Button from '../components/ui/Button';
 
 const ItineraryBuilder = () => {
-  // Demo Data - Physical Activities
-  const [activities, setActivities] = useState([
-    { id: 1, day: 'Day 1', time: '10:00 AM', title: 'Arrival at CDG Airport', location: 'Paris, France' },
-    { id: 2, day: 'Day 1', time: '02:00 PM', title: 'Check-in to Hotel', location: 'Le Marais, Paris' },
-    { id: 3, day: 'Day 1', time: '05:00 PM', title: 'Eiffel Tower Tour', location: 'Champ de Mars' },
-    { id: 4, day: 'Day 2', time: '09:30 AM', title: 'Louvre Museum', location: 'Rue de Rivoli' }
-  ]);
+  const { id: tripId } = useParams();
+  const [activities, setActivities] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Demo Data - Expenses corresponding to activities
-  const [expenses, setExpenses] = useState([
-    { id: 1, activityId: 1, category: 'Transport', description: 'Train from Airport', amount: 12 },
-    { id: 2, activityId: 2, category: 'Accommodation', description: 'Hotel (Night 1)', amount: 150 },
-    { id: 3, activityId: 3, category: 'Activity', description: 'Eiffel Tower Tickets', amount: 28 },
-    { id: 4, activityId: 4, category: 'Activity', description: 'Louvre Entry', amount: 17 }
-  ]);
+  useEffect(() => {
+    if (!tripId) return;
+
+    const fetchData = async () => {
+      const [actRes, expRes] = await Promise.all([
+        supabase.from('activities').select('*').eq('trip_id', tripId).order('created_at', { ascending: true }),
+        supabase.from('expenses').select('*').eq('trip_id', tripId).order('created_at', { ascending: true })
+      ]);
+
+      if (actRes.data) setActivities(actRes.data);
+      if (expRes.data) setExpenses(expRes.data);
+      setLoading(false);
+    };
+
+    fetchData();
+
+    // Set up Real-time subscriptions
+    const activitySub = supabase
+      .channel('activities_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activities', filter: `trip_id=eq.${tripId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') setActivities(prev => [...prev, payload.new]);
+        if (payload.eventType === 'DELETE') setActivities(prev => prev.filter(a => a.id !== payload.old.id));
+        if (payload.eventType === 'UPDATE') setActivities(prev => prev.map(a => a.id === payload.new.id ? payload.new : a));
+      })
+      .subscribe();
+
+    const expenseSub = supabase
+      .channel('expenses_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `trip_id=eq.${tripId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') setExpenses(prev => [...prev, payload.new]);
+        if (payload.eventType === 'DELETE') setExpenses(prev => prev.filter(e => e.id !== payload.old.id));
+        if (payload.eventType === 'UPDATE') setExpenses(prev => prev.map(e => e.id === payload.new.id ? payload.new : e));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(activitySub);
+      supabase.removeChannel(expenseSub);
+    };
+  }, [tripId]);
+
+  const addActivity = async () => {
+    const { error } = await supabase.from('activities').insert({
+      trip_id: tripId,
+      day: 'Day 1',
+      time: '12:00 PM',
+      title: 'New Activity',
+      location: 'New Location'
+    });
+    if (error) console.error('Error adding activity:', error);
+  };
+
+  const addExpense = async () => {
+    const { error } = await supabase.from('expenses').insert({
+      trip_id: tripId,
+      description: 'New Expense',
+      category: 'Other',
+      amount: 0
+    });
+    if (error) console.error('Error adding expense:', error);
+  };
+
+  const deleteActivity = async (id) => {
+    await supabase.from('activities').delete().eq('id', id);
+  };
+
+  const deleteExpense = async (id) => {
+    await supabase.from('expenses').delete().eq('id', id);
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8">
@@ -26,7 +87,7 @@ const ItineraryBuilder = () => {
           <h1 className="text-3xl font-bold text-gray-800">Itinerary & Expenses</h1>
           <p className="text-gray-500">Plan your activities and track expenses side-by-side.</p>
         </div>
-        <Button className="flex items-center">
+        <Button onClick={addActivity} className="flex items-center">
           <PlusIcon className="w-5 h-5 mr-2" /> Add Item
         </Button>
       </div>
@@ -53,7 +114,7 @@ const ItineraryBuilder = () => {
                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-1">
                     <span className="text-xs font-bold text-brand-pink-dark bg-pink-50 px-2 py-1 rounded-md uppercase tracking-wider">{activity.day}</span>
-                    <button className="text-gray-400 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                    <button onClick={() => deleteActivity(activity.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                   </div>
                   <h3 className="font-bold text-gray-800 text-lg mt-2">{activity.title}</h3>
                   <div className="mt-2 space-y-1">
@@ -97,13 +158,16 @@ const ItineraryBuilder = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-lg font-bold text-gray-900">${expense.amount}</span>
-                  <button className="text-gray-400 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                  <button onClick={() => deleteExpense(expense.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
             
             {/* Add New Expense Row */}
-            <button className="w-full bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 text-gray-500 font-medium hover:border-brand-pink-dark hover:text-brand-pink-dark transition-colors flex items-center justify-center gap-2">
+            <button 
+              onClick={addExpense}
+              className="w-full bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 text-gray-500 font-medium hover:border-brand-pink-dark hover:text-brand-pink-dark transition-colors flex items-center justify-center gap-2"
+            >
               <PlusIcon className="w-5 h-5" /> Add Expense
             </button>
           </div>

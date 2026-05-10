@@ -60,7 +60,7 @@ function App() {
               } 
             />
             <Route 
-              path="/trips/:id" 
+              path="/itinerary/:id" 
               element={
                 <ProtectedRoute>
                   <ItineraryBuilder />
