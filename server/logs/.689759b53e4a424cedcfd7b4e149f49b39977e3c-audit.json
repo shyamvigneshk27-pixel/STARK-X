@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "D:\\MyData\\downloads\\ARIA_odoo\\traveloop\\server\\logs\\.689759b53e4a424cedcfd7b4e149f49b39977e3c-audit.json",
+    "files": [
+        {
+            "date": 1778397128035,
+            "name": "D:\\MyData\\downloads\\ARIA_odoo\\traveloop\\server\\logs\\combined-2026-05-10.log",
+            "hash": "26421d75c5c114ab72beabc1313209452109acdc3c1dade7a741ef5845390631"
+        }
+    ],
+    "hashType": "sha256"
+}

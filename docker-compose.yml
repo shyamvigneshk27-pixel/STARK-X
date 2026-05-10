@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: traveloop_db
+    restart: always
+    environment:
+      POSTGRES_DB: traveloop
+      POSTGRES_USER: traveloop
+      POSTGRES_PASSWORD: traveloop_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traveloop"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: traveloop_redis
+    restart: always
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  server:
+    build: ./server
+    container_name: traveloop_server
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://traveloop:traveloop_pass@db:5432/traveloop
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-traveloop-super-secret-jwt-key-change-in-prod}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CLIENT_URL: http://localhost:5173
+      PORT: 4000
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  client:
+    build: ./client
+    container_name: traveloop_client
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+volumes:
+  pgdata:
+  redisdata:

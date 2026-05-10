@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatarUrl String?
+  language  String   @default("en")
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  trips     Trip[]
+  notes     Note[]
+}
+
+model Trip {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  coverPhoto  String?
+  startDate   DateTime
+  endDate     DateTime
+  totalBudget Float           @default(0)
+  isPublic    Boolean         @default(false)
+  shareId     String          @unique @default(uuid())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  stops       Stop[]
+  notes       Note[]
+  checklist   ChecklistItem[]
+}
+
+model Stop {
+  id            String     @id @default(uuid())
+  tripId        String
+  trip          Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  cityId        String
+  city          City       @relation(fields: [cityId], references: [id])
+  arrivalDate   DateTime
+  departureDate DateTime
+  order         Int
+  activities    Activity[]
+}
+
+model City {
+  id         String             @id @default(uuid())
+  name       String             @unique
+  country    String
+  region     String?
+  costIndex  Float              @default(1.0)
+  popularity Int                @default(0)
+  lat        Float
+  lng        Float
+  imageUrl   String?
+  stops      Stop[]
+  templates  ActivityTemplate[]
+}
+
+model ActivityTemplate {
+  id            String  @id @default(uuid())
+  cityId        String
+  city          City    @relation(fields: [cityId], references: [id])
+  name          String
+  type          String
+  estimatedCost Float
+  durationHrs   Float
+  description   String?
+  imageUrl      String?
+}
+
+model Activity {
+  id            String  @id @default(uuid())
+  stopId        String
+  stop          Stop    @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  name          String
+  type          String
+  estimatedCost Float   @default(0)
+  durationHrs   Float   @default(1)
+  startTime     String?
+  notes         String?
+  isBooked      Boolean @default(false)
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  stopId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChecklistItem {
+  id       String  @id @default(uuid())
+  tripId   String
+  trip     Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  label    String
+  category String  @default("general")
+  isPacked Boolean @default(false)
+}
